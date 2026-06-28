@@ -66,6 +66,24 @@ enum MenuBarMetricPreference: String, CaseIterable, Identifiable {
     }
 }
 
+enum MostUsedProviderRankingMetric: String, CaseIterable, Identifiable {
+    case closestToRateLimit
+    case tokensUsed
+    case dollarsUsed
+
+    var id: String {
+        self.rawValue
+    }
+
+    var label: String {
+        switch self {
+        case .closestToRateLimit: L("most_used_provider_metric_closest_to_rate_limit")
+        case .tokensUsed: L("most_used_provider_metric_tokens_used")
+        case .dollarsUsed: L("most_used_provider_metric_dollars_used")
+        }
+    }
+}
+
 enum KiroMenuBarDisplayMode: String, CaseIterable, Identifiable {
     case automatic
     case hidden
@@ -384,6 +402,7 @@ extension SettingsStore {
         let confettiOnWeeklyLimitResetsEnabled = userDefaults.object(
             forKey: "confettiOnWeeklyLimitResetsEnabled") as? Bool ?? false
         let menuBarShowsHighestUsage = userDefaults.object(forKey: "menuBarShowsHighestUsage") as? Bool ?? false
+        let highestUsageDefaults = Self.loadMostUsedProviderDefaults(userDefaults: userDefaults)
         let claudeOAuthKeychainPromptModeRaw = userDefaults.string(forKey: "claudeOAuthKeychainPromptMode")
         let claudeOAuthKeychainReadStrategyRaw = userDefaults.string(forKey: "claudeOAuthKeychainReadStrategy")
         let claudeWebExtrasEnabledRaw = userDefaults.object(forKey: "claudeWebExtrasEnabled") as? Bool ?? false
@@ -458,6 +477,8 @@ extension SettingsStore {
             randomBlinkEnabled: randomBlinkEnabled,
             confettiOnWeeklyLimitResetsEnabled: confettiOnWeeklyLimitResetsEnabled,
             menuBarShowsHighestUsage: menuBarShowsHighestUsage,
+            menuBarHighestUsageProviderCandidatesRaw: highestUsageDefaults.providerCandidatesRaw,
+            menuBarHighestUsageRankingMetricRaw: highestUsageDefaults.rankingMetricRaw,
             claudeOAuthKeychainPromptModeRaw: claudeOAuthKeychainPromptModeRaw,
             claudeOAuthKeychainReadStrategyRaw: claudeOAuthKeychainReadStrategyRaw,
             claudeWebExtrasEnabledRaw: claudeWebExtrasEnabledRaw,
@@ -475,6 +496,15 @@ extension SettingsStore {
             providersSortedAlphabetically: providersSortedAlphabetically,
             appLanguageRaw: appLanguageRaw,
             terminalAppRaw: userDefaults.string(forKey: "terminalApp"))
+    }
+
+    private static func loadMostUsedProviderDefaults(userDefaults: UserDefaults)
+        -> (providerCandidatesRaw: [String]?, rankingMetricRaw: String)
+    {
+        let providerCandidatesRaw = userDefaults.array(forKey: "menuBarHighestUsageProviderCandidates") as? [String]
+        let rankingMetricRaw = userDefaults.string(forKey: "menuBarHighestUsageRankingMetric")
+            ?? MostUsedProviderRankingMetric.closestToRateLimit.rawValue
+        return (providerCandidatesRaw, rankingMetricRaw)
     }
 
     private static func loadMenuBarMetricPreferences(userDefaults: UserDefaults) -> [String: String] {
@@ -654,6 +684,8 @@ extension SettingsStore {
         if !enabled, self.selectedMenuProvider == provider {
             self.selectedMenuProvider = nil
         }
+        _ = self.reconcileMostUsedProviderCandidates(
+            activeProviders: self.enabledProvidersOrdered(metadataByProvider: ProviderDescriptorRegistry.metadata))
     }
 
     func rerunProviderDetection() {

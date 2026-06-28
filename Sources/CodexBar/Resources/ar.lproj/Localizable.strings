@@ -1112,3 +1112,14 @@
 "byte_unit_megabytes" = "ميغابايتات";
 "byte_unit_gigabyte" = "غيغابايت";
 "byte_unit_gigabytes" = "غيغابايتات";
+"most_used_provider_sentence_show" = "إظهار المزود الأكثر استخدامًا";
+"most_used_provider_sentence_from" = "من";
+"most_used_provider_sentence_by" = "حسب";
+"most_used_provider_candidates_menu" = "المزودون المرشحون";
+"most_used_provider_metric_menu" = "مقياس الترتيب";
+"most_used_provider_preview_all_enabled" = "كل المفعّلين";
+"most_used_provider_preview_count" = "%d محدد";
+"most_used_provider_preview_none" = "لا يوجد مزودون مفعّلون";
+"most_used_provider_metric_closest_to_rate_limit" = "الأقرب إلى حد المعدل";
+"most_used_provider_metric_tokens_used" = "الرموز المستخدمة";
+"most_used_provider_metric_dollars_used" = "الدولارات المستخدمة";

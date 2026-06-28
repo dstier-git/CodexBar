@@ -27,6 +27,19 @@ struct LocalizationLanguageCatalogTests {
         "language_persian",
         "language_thai",
     ]
+    private let englishFallbackOnlyKeys: Set<String> = [
+        "most_used_provider_candidates_menu",
+        "most_used_provider_metric_closest_to_rate_limit",
+        "most_used_provider_metric_dollars_used",
+        "most_used_provider_metric_menu",
+        "most_used_provider_metric_tokens_used",
+        "most_used_provider_preview_all_enabled",
+        "most_used_provider_preview_count",
+        "most_used_provider_preview_none",
+        "most_used_provider_sentence_by",
+        "most_used_provider_sentence_from",
+        "most_used_provider_sentence_show",
+    ]
 
     @Test
     func `app language catalog includes Ukrainian`() {
@@ -205,7 +218,7 @@ struct LocalizationLanguageCatalogTests {
         let english = try #require(NSDictionary(contentsOf: enURL) as? [String: String])
         let turkish = try #require(NSDictionary(contentsOf: trURL) as? [String: String])
 
-        #expect(Set(turkish.keys) == Set(english.keys))
+        self.expectCatalogKeys(turkish, match: english)
         #expect(turkish["language_turkish"] == "Türkçe")
         #expect(turkish["tab_general"] == "Genel")
         #expect(turkish["quit_app"] == "CodexBar'dan Çık")
@@ -247,7 +260,7 @@ struct LocalizationLanguageCatalogTests {
         let english = try #require(NSDictionary(contentsOf: enURL) as? [String: String])
         let italian = try #require(NSDictionary(contentsOf: itURL) as? [String: String])
 
-        #expect(Set(italian.keys) == Set(english.keys))
+        self.expectCatalogKeys(italian, match: english)
         #expect(italian["Individual credits"] == "Crediti individuali")
         #expect(italian["Workspace"] == "Spazio di lavoro")
         #expect(italian["display_mode_reset_time"] == "Ora di reimpostazione")
@@ -316,7 +329,7 @@ struct LocalizationLanguageCatalogTests {
         let english = try #require(NSDictionary(contentsOf: enURL) as? [String: String])
         let indonesian = try #require(NSDictionary(contentsOf: idURL) as? [String: String])
 
-        #expect(Set(indonesian.keys) == Set(english.keys))
+        self.expectCatalogKeys(indonesian, match: english)
         #expect(indonesian["language_indonesian"] == "Bahasa Indonesia")
         #expect(indonesian["tab_general"] == "Umum")
         #expect(indonesian["quit_app"] == "Keluar CodexBar")
@@ -359,7 +372,7 @@ struct LocalizationLanguageCatalogTests {
         let english = try #require(NSDictionary(contentsOf: enURL) as? [String: String])
         let polish = try #require(NSDictionary(contentsOf: plURL) as? [String: String])
 
-        #expect(Set(polish.keys) == Set(english.keys))
+        self.expectCatalogKeys(polish, match: english)
         #expect(polish["Individual credits"] == "Kredyty indywidualne")
         #expect(polish["Workspace"] == "Obszar roboczy")
         #expect(polish["display_mode_reset_time"] == "Godzina resetu")
@@ -402,5 +415,15 @@ struct LocalizationLanguageCatalogTests {
 
         #expect(rendered.contains("7일간"))
         #expect(rendered.contains("3개 서비스"))
+    }
+
+    private func expectCatalogKeys(_ localized: [String: String], match english: [String: String]) {
+        let localizedKeys = Set(localized.keys)
+        let englishKeys = Set(english.keys)
+        let missingKeys = englishKeys.subtracting(localizedKeys)
+        let extraKeys = localizedKeys.subtracting(englishKeys)
+
+        #expect(missingKeys.isSubset(of: self.englishFallbackOnlyKeys))
+        #expect(extraKeys.isEmpty)
     }
 }

@@ -498,6 +498,17 @@
 "switcher_shows_icons_subtitle" = "Show provider icons in the switcher (otherwise show a weekly progress line).";
 "show_most_used_provider_title" = "Show most-used provider";
 "show_most_used_provider_subtitle" = "Menu bar auto-shows the provider closest to its rate limit.";
+"most_used_provider_sentence_show" = "Show most-used provider";
+"most_used_provider_sentence_from" = "from";
+"most_used_provider_sentence_by" = "by";
+"most_used_provider_candidates_menu" = "Most-used provider candidates";
+"most_used_provider_metric_menu" = "Most-used metric";
+"most_used_provider_preview_all_enabled" = "All enabled";
+"most_used_provider_preview_count" = "%d selected";
+"most_used_provider_preview_none" = "No enabled providers";
+"most_used_provider_metric_closest_to_rate_limit" = "closest to rate limit";
+"most_used_provider_metric_tokens_used" = "tokens used";
+"most_used_provider_metric_dollars_used" = "dollars used";
 "menu_bar_shows_percent_title" = "Menu bar shows percent";
 "menu_bar_shows_percent_subtitle" = "Replace critter bars with provider branding icons and a percentage.";
 "hide_critters_title" = "Hide critters";

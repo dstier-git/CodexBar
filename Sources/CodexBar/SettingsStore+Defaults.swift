@@ -363,6 +363,107 @@ extension SettingsStore {
         }
     }
 
+    var menuBarHighestUsageProviderCandidatesRaw: [String]? {
+        get { self.defaultsState.menuBarHighestUsageProviderCandidatesRaw }
+        set {
+            let normalized = newValue.map { raw in
+                Self.normalizeProviders(Self.decodeProviders(raw)).map(\.rawValue)
+            }
+            self.defaultsState.menuBarHighestUsageProviderCandidatesRaw = normalized
+            if let normalized {
+                self.userDefaults.set(normalized, forKey: "menuBarHighestUsageProviderCandidates")
+            } else {
+                self.userDefaults.removeObject(forKey: "menuBarHighestUsageProviderCandidates")
+            }
+        }
+    }
+
+    private var menuBarHighestUsageRankingMetricRaw: String? {
+        get { self.defaultsState.menuBarHighestUsageRankingMetricRaw }
+        set {
+            self.defaultsState.menuBarHighestUsageRankingMetricRaw = newValue
+            if let raw = newValue {
+                self.userDefaults.set(raw, forKey: "menuBarHighestUsageRankingMetric")
+            } else {
+                self.userDefaults.removeObject(forKey: "menuBarHighestUsageRankingMetric")
+            }
+        }
+    }
+
+    var menuBarHighestUsageRankingMetric: MostUsedProviderRankingMetric {
+        get {
+            MostUsedProviderRankingMetric(rawValue: self.menuBarHighestUsageRankingMetricRaw ?? "")
+                ?? .closestToRateLimit
+        }
+        set { self.menuBarHighestUsageRankingMetricRaw = newValue.rawValue }
+    }
+
+    func resolvedMostUsedProviderCandidates(activeProviders: [UsageProvider]) -> [UsageProvider] {
+        let normalizedActive = Self.normalizeProviders(activeProviders)
+        guard !normalizedActive.isEmpty else { return [] }
+        guard let raw = self.menuBarHighestUsageProviderCandidatesRaw else {
+            return normalizedActive
+        }
+
+        let selectedSet = Set(Self.decodeProviders(raw))
+        let resolved = normalizedActive.filter { selectedSet.contains($0) }
+        return resolved.isEmpty ? normalizedActive : resolved
+    }
+
+    @discardableResult
+    func reconcileMostUsedProviderCandidates(activeProviders: [UsageProvider]) -> [UsageProvider] {
+        let normalizedActive = Self.normalizeProviders(activeProviders)
+        guard !normalizedActive.isEmpty else { return [] }
+        guard let raw = self.menuBarHighestUsageProviderCandidatesRaw else {
+            return normalizedActive
+        }
+
+        let selectedSet = Set(Self.decodeProviders(raw))
+        let sanitized = normalizedActive.filter { selectedSet.contains($0) }
+        if sanitized.isEmpty {
+            self.menuBarHighestUsageProviderCandidatesRaw = nil
+            return normalizedActive
+        }
+
+        let sanitizedRaw = sanitized.map(\.rawValue)
+        if sanitizedRaw != raw {
+            self.menuBarHighestUsageProviderCandidatesRaw = sanitizedRaw
+        }
+        return sanitized
+    }
+
+    @discardableResult
+    func setMostUsedProviderCandidate(
+        provider: UsageProvider,
+        isSelected: Bool,
+        activeProviders: [UsageProvider]) -> [UsageProvider]
+    {
+        let normalizedActive = Self.normalizeProviders(activeProviders)
+        guard normalizedActive.contains(provider) else {
+            return self.resolvedMostUsedProviderCandidates(activeProviders: normalizedActive)
+        }
+        guard !normalizedActive.isEmpty else {
+            self.menuBarHighestUsageProviderCandidatesRaw = nil
+            return []
+        }
+
+        let currentSelection = self.resolvedMostUsedProviderCandidates(activeProviders: normalizedActive)
+        var updatedSet = Set(currentSelection)
+
+        if isSelected {
+            updatedSet.insert(provider)
+        } else {
+            guard currentSelection.count > 1 else { return currentSelection }
+            updatedSet.remove(provider)
+        }
+
+        let updatedSelection = normalizedActive.filter { updatedSet.contains($0) }
+        self.menuBarHighestUsageProviderCandidatesRaw = updatedSelection.count == normalizedActive.count
+            ? nil
+            : updatedSelection.map(\.rawValue)
+        return updatedSelection
+    }
+
     var claudeOAuthKeychainPromptMode: ClaudeOAuthKeychainPromptMode {
         get {
             let raw = self.defaultsState.claudeOAuthKeychainPromptModeRaw

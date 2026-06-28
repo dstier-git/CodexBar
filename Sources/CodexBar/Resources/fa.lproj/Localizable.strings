@@ -1112,3 +1112,14 @@
 "byte_unit_megabytes" = "مگابایت";
 "byte_unit_gigabyte" = "گیگابایت";
 "byte_unit_gigabytes" = "گیگابایت";
+"most_used_provider_sentence_show" = "نمایش پرکاربردترین ارائه‌دهنده";
+"most_used_provider_sentence_from" = "از";
+"most_used_provider_sentence_by" = "بر اساس";
+"most_used_provider_candidates_menu" = "ارائه‌دهندگان نامزد";
+"most_used_provider_metric_menu" = "معیار رتبه‌بندی";
+"most_used_provider_preview_all_enabled" = "همه فعال‌ها";
+"most_used_provider_preview_count" = "%d مورد انتخاب شده";
+"most_used_provider_preview_none" = "ارائه‌دهنده فعالی نیست";
+"most_used_provider_metric_closest_to_rate_limit" = "نزدیک‌ترین به محدودیت نرخ";
+"most_used_provider_metric_tokens_used" = "توکن‌های استفاده‌شده";
+"most_used_provider_metric_dollars_used" = "دلارهای استفاده‌شده";

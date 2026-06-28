@@ -5,6 +5,11 @@ import Testing
 
 @MainActor
 struct UsageStoreHighestUsageTests {
+    init() {
+        UserDefaults.standard.removeObject(forKey: "menuBarHighestUsageProviderCandidates")
+        UserDefaults.standard.removeObject(forKey: "menuBarHighestUsageRankingMetric")
+    }
+
     @Test
     func `selects highest usage among enabled providers`() {
         let settings = SettingsStore(
@@ -929,6 +934,157 @@ extension UsageStoreHighestUsageTests {
                         resetsAt: nil,
                         resetDescription: nil)),
             ],
+            updatedAt: Date())
+    }
+}
+
+extension UsageStoreHighestUsageTests {
+    @Test
+    func `candidate set filters rate limit ranking`() throws {
+        let context = try self.makeRankingStore(suiteName: "UsageStoreHighestUsageTests-candidates-rate-limit")
+        context.settings.menuBarHighestUsageProviderCandidatesRaw = ["codex"]
+
+        context.store._setSnapshotForTesting(self.usageSnapshot(usedPercent: 25), provider: .codex)
+        context.store._setSnapshotForTesting(self.usageSnapshot(usedPercent: 90), provider: .claude)
+
+        let highest = context.store.providerWithHighestUsage()
+        #expect(highest?.provider == .codex)
+        #expect(highest?.usedPercent == 25)
+    }
+
+    @Test
+    func `rate limit metric remains default ranking behavior`() throws {
+        let context = try self.makeRankingStore(suiteName: "UsageStoreHighestUsageTests-default-rate-limit")
+
+        context.store._setSnapshotForTesting(self.usageSnapshot(usedPercent: 25), provider: .codex)
+        context.store._setSnapshotForTesting(self.usageSnapshot(usedPercent: 60), provider: .claude)
+
+        let highest = context.store.providerWithHighestUsage()
+        #expect(context.settings.menuBarHighestUsageRankingMetric == .closestToRateLimit)
+        #expect(highest?.provider == .claude)
+        #expect(highest?.usedPercent == 60)
+    }
+
+    @Test
+    func `tokens used metric ranks existing session token snapshots`() throws {
+        let context = try self.makeRankingStore(suiteName: "UsageStoreHighestUsageTests-token-ranking")
+        context.settings.menuBarHighestUsageRankingMetric = .tokensUsed
+
+        context.store._setTokenSnapshotForTesting(self.tokenSnapshot(tokens: 1000, cost: 2), provider: .codex)
+        context.store._setTokenSnapshotForTesting(self.tokenSnapshot(tokens: 2500, cost: 1), provider: .claude)
+
+        let highest = context.store.providerWithHighestUsage()
+        #expect(highest?.provider == .claude)
+        #expect(highest?.usedPercent == 2500)
+    }
+
+    @Test
+    func `dollars used metric ranks existing session cost snapshots`() throws {
+        let context = try self.makeRankingStore(suiteName: "UsageStoreHighestUsageTests-dollar-ranking")
+        context.settings.menuBarHighestUsageRankingMetric = .dollarsUsed
+
+        context.store._setTokenSnapshotForTesting(self.tokenSnapshot(tokens: 4000, cost: 1.25), provider: .codex)
+        context.store._setTokenSnapshotForTesting(self.tokenSnapshot(tokens: 1000, cost: 4.75), provider: .claude)
+
+        let highest = context.store.providerWithHighestUsage()
+        #expect(highest?.provider == .claude)
+        #expect(highest?.usedPercent == 4.75)
+    }
+
+    @Test
+    func `token metric returns nil when token snapshots are missing`() throws {
+        let context = try self.makeRankingStore(suiteName: "UsageStoreHighestUsageTests-token-missing")
+        context.settings.menuBarHighestUsageRankingMetric = .tokensUsed
+
+        context.store._setSnapshotForTesting(self.usageSnapshot(usedPercent: 80), provider: .codex)
+        context.store._setSnapshotForTesting(self.usageSnapshot(usedPercent: 90), provider: .claude)
+
+        let highest = context.store.providerWithHighestUsage()
+        #expect(highest?.provider == nil)
+    }
+
+    @Test
+    func `disabled providers are excluded from token ranking`() throws {
+        let context = try self.makeRankingStore(suiteName: "UsageStoreHighestUsageTests-disabled-token")
+        let metadata = ProviderRegistry.shared.metadata
+        context.settings.menuBarHighestUsageRankingMetric = .tokensUsed
+        context.settings.menuBarHighestUsageProviderCandidatesRaw = ["codex", "claude"]
+        try context.settings.setProviderEnabled(
+            provider: .claude,
+            metadata: #require(metadata[.claude]),
+            enabled: false)
+
+        context.store._setTokenSnapshotForTesting(self.tokenSnapshot(tokens: 100, cost: 1), provider: .codex)
+        context.store._setTokenSnapshotForTesting(self.tokenSnapshot(tokens: 10000, cost: 10), provider: .claude)
+
+        let highest = context.store.providerWithHighestUsage()
+        #expect(highest?.provider == .codex)
+        #expect(highest?.usedPercent == 100)
+    }
+
+    @Test
+    func `token ranking keeps stable ties by enabled provider order`() throws {
+        let context = try self.makeRankingStore(
+            suiteName: "UsageStoreHighestUsageTests-token-tie-order",
+            providerOrder: [.claude, .codex])
+        context.settings.menuBarHighestUsageRankingMetric = .tokensUsed
+
+        context.store._setTokenSnapshotForTesting(self.tokenSnapshot(tokens: 500, cost: 1), provider: .claude)
+        context.store._setTokenSnapshotForTesting(self.tokenSnapshot(tokens: 500, cost: 1), provider: .codex)
+
+        let highest = context.store.providerWithHighestUsage()
+        #expect(highest?.provider == .claude)
+        #expect(highest?.usedPercent == 500)
+    }
+
+    private func makeRankingStore(
+        suiteName: String,
+        providerOrder: [UsageProvider]? = nil)
+        throws -> (settings: SettingsStore, store: UsageStore)
+    {
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        let configStore = testConfigStore(suiteName: suiteName)
+        if let providerOrder {
+            try configStore.save(CodexBarConfig(providers: providerOrder.map { ProviderConfig(id: $0) }))
+        }
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+
+        let metadata = ProviderRegistry.shared.metadata
+        try settings.setProviderEnabled(provider: .codex, metadata: #require(metadata[.codex]), enabled: true)
+        try settings.setProviderEnabled(provider: .claude, metadata: #require(metadata[.claude]), enabled: true)
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        return (settings, store)
+    }
+
+    private func usageSnapshot(usedPercent: Double) -> UsageSnapshot {
+        UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: usedPercent,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+    }
+
+    private func tokenSnapshot(tokens: Int?, cost: Double?) -> CostUsageTokenSnapshot {
+        CostUsageTokenSnapshot(
+            sessionTokens: tokens,
+            sessionCostUSD: cost,
+            last30DaysTokens: nil,
+            last30DaysCostUSD: nil,
+            daily: [],
             updatedAt: Date())
     }
 }

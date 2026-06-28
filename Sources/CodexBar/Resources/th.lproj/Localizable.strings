@@ -1112,3 +1112,14 @@
 "byte_unit_megabytes" = "เมกะไบต์";
 "byte_unit_gigabyte" = "กิกะไบต์";
 "byte_unit_gigabytes" = "กิกะไบต์";
+"most_used_provider_sentence_show" = "แสดงผู้ให้บริการที่ใช้บ่อยที่สุด";
+"most_used_provider_sentence_from" = "จาก";
+"most_used_provider_sentence_by" = "ตาม";
+"most_used_provider_candidates_menu" = "ผู้ให้บริการที่เลือกได้";
+"most_used_provider_metric_menu" = "เมตริกการจัดอันดับ";
+"most_used_provider_preview_all_enabled" = "ที่เปิดใช้ทั้งหมด";
+"most_used_provider_preview_count" = "เลือก %d รายการ";
+"most_used_provider_preview_none" = "ไม่มีผู้ให้บริการที่เปิดใช้";
+"most_used_provider_metric_closest_to_rate_limit" = "ใกล้ขีดจำกัดอัตราที่สุด";
+"most_used_provider_metric_tokens_used" = "โทเค็นที่ใช้";
+"most_used_provider_metric_dollars_used" = "ดอลลาร์ที่ใช้";

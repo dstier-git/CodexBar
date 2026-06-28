@@ -75,6 +75,79 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `most used provider candidates default to all enabled providers`() throws {
+        let settings = Self.makeSettingsStore()
+        let metadata = ProviderRegistry.shared.metadata
+        try settings.setProviderEnabled(provider: .codex, metadata: #require(metadata[.codex]), enabled: true)
+        try settings.setProviderEnabled(provider: .claude, metadata: #require(metadata[.claude]), enabled: true)
+
+        let enabled = settings.enabledProvidersOrdered(metadataByProvider: metadata)
+
+        #expect(settings.resolvedMostUsedProviderCandidates(activeProviders: enabled) == enabled)
+        #expect(settings.menuBarHighestUsageProviderCandidatesRaw == nil)
+    }
+
+    @Test
+    func `most used provider candidates persist as a custom subset`() throws {
+        let suite = "SettingsStoreCoverageTests-most-used-candidates-persist"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        let metadata = ProviderRegistry.shared.metadata
+        try settings.setProviderEnabled(provider: .codex, metadata: #require(metadata[.codex]), enabled: true)
+        try settings.setProviderEnabled(provider: .claude, metadata: #require(metadata[.claude]), enabled: true)
+
+        let enabled = settings.enabledProvidersOrdered(metadataByProvider: metadata)
+        settings.setMostUsedProviderCandidate(provider: .codex, isSelected: false, activeProviders: enabled)
+
+        #expect(settings.resolvedMostUsedProviderCandidates(activeProviders: enabled) == [.claude])
+        #expect(defaults.array(forKey: "menuBarHighestUsageProviderCandidates") as? [String] == ["claude"])
+
+        let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloaded.resolvedMostUsedProviderCandidates(activeProviders: enabled) == [.claude])
+    }
+
+    @Test
+    func `most used provider candidates reconcile after provider disablement`() throws {
+        let settings = Self.makeSettingsStore()
+        let metadata = ProviderRegistry.shared.metadata
+        try settings.setProviderEnabled(provider: .codex, metadata: #require(metadata[.codex]), enabled: true)
+        try settings.setProviderEnabled(provider: .claude, metadata: #require(metadata[.claude]), enabled: true)
+        try settings.setProviderEnabled(provider: .cursor, metadata: #require(metadata[.cursor]), enabled: true)
+        settings.menuBarHighestUsageProviderCandidatesRaw = ["claude", "cursor"]
+
+        try settings.setProviderEnabled(provider: .cursor, metadata: #require(metadata[.cursor]), enabled: false)
+
+        var enabled = settings.enabledProvidersOrdered(metadataByProvider: metadata)
+        #expect(settings.resolvedMostUsedProviderCandidates(activeProviders: enabled) == [.claude])
+        #expect(settings.menuBarHighestUsageProviderCandidatesRaw == ["claude"])
+
+        try settings.setProviderEnabled(provider: .claude, metadata: #require(metadata[.claude]), enabled: false)
+
+        enabled = settings.enabledProvidersOrdered(metadataByProvider: metadata)
+        #expect(settings.resolvedMostUsedProviderCandidates(activeProviders: enabled) == [.codex])
+        #expect(settings.menuBarHighestUsageProviderCandidatesRaw == nil)
+    }
+
+    @Test
+    func `most used provider ranking metric defaults and persists`() throws {
+        let suite = "SettingsStoreCoverageTests-most-used-ranking-metric"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+
+        #expect(settings.menuBarHighestUsageRankingMetric == .closestToRateLimit)
+
+        settings.menuBarHighestUsageRankingMetric = .dollarsUsed
+        #expect(defaults.string(forKey: "menuBarHighestUsageRankingMetric") == "dollarsUsed")
+
+        let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloaded.menuBarHighestUsageRankingMetric == .dollarsUsed)
+    }
+
+    @Test
     func `minimax settings snapshot uses selected token account as manual cookie`() {
         let settings = Self.makeSettingsStore(suiteName: "SettingsStoreCoverageTests-minimax-token-account")
         settings.minimaxCookieSource = .auto

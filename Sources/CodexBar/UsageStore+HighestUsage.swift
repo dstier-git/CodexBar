@@ -3,11 +3,29 @@ import Foundation
 
 @MainActor
 extension UsageStore {
-    /// Returns the enabled provider with the highest usage percentage (closest to rate limit).
-    /// Excludes providers that are fully rate-limited.
+    /// Returns the enabled candidate provider with the highest configured usage metric.
+    /// The default metric is closest to rate limit, which excludes providers that are fully rate-limited.
     func providerWithHighestUsage() -> (provider: UsageProvider, usedPercent: Double)? {
+        let enabledProviders = self.enabledProviders()
+        let candidateSet = Set(self.settings.reconcileMostUsedProviderCandidates(
+            activeProviders: self.enabledProvidersForDisplay()))
+        let candidateProviders = enabledProviders.filter { candidateSet.contains($0) }
+
+        switch self.settings.menuBarHighestUsageRankingMetric {
+        case .closestToRateLimit:
+            return self.providerClosestToRateLimit(candidateProviders: candidateProviders)
+        case .tokensUsed:
+            return self.providerWithHighestTokenUsage(candidateProviders: candidateProviders)
+        case .dollarsUsed:
+            return self.providerWithHighestDollarUsage(candidateProviders: candidateProviders)
+        }
+    }
+
+    private func providerClosestToRateLimit(candidateProviders: [UsageProvider])
+        -> (provider: UsageProvider, usedPercent: Double)?
+    {
         var highest: (provider: UsageProvider, usedPercent: Double)?
-        for provider in self.enabledProviders() {
+        for provider in candidateProviders {
             guard let snapshot = self.snapshots[provider] else { continue }
             guard let window = self.menuBarMetricWindowForHighestUsage(provider: provider, snapshot: snapshot) else {
                 continue
@@ -22,6 +40,41 @@ extension UsageStore {
             }
             if highest == nil || percent > highest!.usedPercent {
                 highest = (provider, percent)
+            }
+        }
+        return highest
+    }
+
+    private func providerWithHighestTokenUsage(candidateProviders: [UsageProvider])
+        -> (provider: UsageProvider, usedPercent: Double)?
+    {
+        self.providerWithHighestTokenSnapshotValue(candidateProviders: candidateProviders) { snapshot in
+            snapshot.sessionTokens.map(Double.init)
+        }
+    }
+
+    private func providerWithHighestDollarUsage(candidateProviders: [UsageProvider])
+        -> (provider: UsageProvider, usedPercent: Double)?
+    {
+        self.providerWithHighestTokenSnapshotValue(candidateProviders: candidateProviders) { snapshot in
+            snapshot.sessionCostUSD
+        }
+    }
+
+    private func providerWithHighestTokenSnapshotValue(
+        candidateProviders: [UsageProvider],
+        value: (CostUsageTokenSnapshot) -> Double?)
+        -> (provider: UsageProvider, usedPercent: Double)?
+    {
+        var highest: (provider: UsageProvider, usedPercent: Double)?
+        for provider in candidateProviders {
+            guard let snapshot = self.tokenSnapshots[provider],
+                  let metricValue = value(snapshot)
+            else {
+                continue
+            }
+            if highest == nil || metricValue > highest!.usedPercent {
+                highest = (provider, metricValue)
             }
         }
         return highest

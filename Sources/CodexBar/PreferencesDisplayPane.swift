@@ -31,10 +31,7 @@ struct DisplayPane: View {
                         binding: self.$settings.switcherShowsIcons)
                         .disabled(!self.settings.mergeIcons)
                         .opacity(self.settings.mergeIcons ? 1 : 0.5)
-                    PreferenceToggleRow(
-                        title: L("show_most_used_provider_title"),
-                        subtitle: L("show_most_used_provider_subtitle"),
-                        binding: self.$settings.menuBarShowsHighestUsage)
+                    self.mostUsedProviderRow
                         .disabled(!self.settings.mergeIcons)
                         .opacity(self.settings.mergeIcons ? 1 : 0.5)
                     PreferenceToggleRow(
@@ -139,6 +136,7 @@ struct DisplayPane: View {
             .padding(.vertical, 12)
             .onAppear {
                 self.reconcileOverviewSelection()
+                self.reconcileMostUsedProviderCandidates()
             }
             .onChange(of: self.settings.mergeIcons) { _, isEnabled in
                 guard isEnabled else {
@@ -146,6 +144,7 @@ struct DisplayPane: View {
                     return
                 }
                 self.reconcileOverviewSelection()
+                self.reconcileMostUsedProviderCandidates()
             }
             .onChange(of: self.activeProvidersInOrder) { _, _ in
                 if self.activeProvidersInOrder.isEmpty {
@@ -153,7 +152,72 @@ struct DisplayPane: View {
                 }
                 self.reconcileOverviewSelection()
             }
+            .onChange(of: self.mostUsedProviderCandidatesInOrder) { _, _ in
+                self.reconcileMostUsedProviderCandidates()
+            }
         }
+    }
+
+    private var mostUsedProviderRow: some View {
+        HStack(alignment: .center, spacing: 6) {
+            Toggle(isOn: self.$settings.menuBarShowsHighestUsage) {
+                Text(L("most_used_provider_sentence_show"))
+                    .font(.body)
+            }
+            .toggleStyle(.checkbox)
+            .fixedSize()
+
+            Text(L("most_used_provider_sentence_from"))
+                .font(.body)
+                .foregroundStyle(.secondary)
+
+            self.mostUsedProviderMenu
+
+            Text(L("most_used_provider_sentence_by"))
+                .font(.body)
+                .foregroundStyle(.secondary)
+
+            Picker(
+                L("most_used_provider_metric_menu"),
+                selection: self.$settings.menuBarHighestUsageRankingMetric)
+            {
+                ForEach(MostUsedProviderRankingMetric.allCases) { metric in
+                    Text(metric.label).tag(metric)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .controlSize(.small)
+            .frame(maxWidth: 180)
+        }
+    }
+
+    private var mostUsedProviderMenu: some View {
+        Menu {
+            if self.mostUsedProviderCandidatesInOrder.isEmpty {
+                Text(L("most_used_provider_preview_none"))
+            } else {
+                ForEach(self.mostUsedProviderCandidatesInOrder, id: \.self) { provider in
+                    Toggle(
+                        isOn: Binding(
+                            get: { self.mostUsedProviderSelectedProviders.contains(provider) },
+                            set: { isSelected in
+                                self.setMostUsedProviderCandidate(provider: provider, isSelected: isSelected)
+                            })) {
+                        Text(self.providerDisplayName(provider))
+                    }
+                    .disabled(self.mostUsedProviderToggleIsDisabled(provider))
+                }
+            }
+        } label: {
+            Text(self.mostUsedProviderPreviewText)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .controlSize(.small)
+        .disabled(self.mostUsedProviderCandidatesInOrder.isEmpty)
+        .frame(maxWidth: 160)
+        .accessibilityLabel(L("most_used_provider_candidates_menu"))
     }
 
     private var overviewProviderSelector: some View {
@@ -228,10 +292,19 @@ struct DisplayPane: View {
         self.store.enabledProviders()
     }
 
+    private var mostUsedProviderCandidatesInOrder: [UsageProvider] {
+        self.store.enabledProvidersForDisplay()
+    }
+
     private var overviewSelectedProviders: [UsageProvider] {
         self.settings.resolvedMergedOverviewProviders(
             activeProviders: self.activeProvidersInOrder,
             maxVisibleProviders: Self.maxOverviewProviders)
+    }
+
+    private var mostUsedProviderSelectedProviders: [UsageProvider] {
+        self.settings.resolvedMostUsedProviderCandidates(
+            activeProviders: self.mostUsedProviderCandidatesInOrder)
     }
 
     private var showsOverviewConfigureButton: Bool {
@@ -242,6 +315,13 @@ struct DisplayPane: View {
         let selectedNames = self.overviewSelectedProviders.map(self.providerDisplayName)
         guard !selectedNames.isEmpty else { return L("overview_no_providers_selected") }
         return selectedNames.joined(separator: ", ")
+    }
+
+    private var mostUsedProviderPreviewText: String {
+        MostUsedProviderCandidatePreview.text(
+            selectedProviders: self.mostUsedProviderSelectedProviders,
+            activeProviders: self.mostUsedProviderCandidatesInOrder,
+            displayName: self.providerDisplayName)
     }
 
     private func providerDisplayName(_ provider: UsageProvider) -> String {
@@ -256,9 +336,26 @@ struct DisplayPane: View {
             maxVisibleProviders: Self.maxOverviewProviders)
     }
 
+    private func setMostUsedProviderCandidate(provider: UsageProvider, isSelected: Bool) {
+        _ = self.settings.setMostUsedProviderCandidate(
+            provider: provider,
+            isSelected: isSelected,
+            activeProviders: self.mostUsedProviderCandidatesInOrder)
+    }
+
+    private func mostUsedProviderToggleIsDisabled(_ provider: UsageProvider) -> Bool {
+        self.mostUsedProviderSelectedProviders.contains(provider) &&
+            self.mostUsedProviderSelectedProviders.count <= 1
+    }
+
     private func reconcileOverviewSelection() {
         _ = self.settings.reconcileMergedOverviewSelectedProviders(
             activeProviders: self.activeProvidersInOrder,
             maxVisibleProviders: Self.maxOverviewProviders)
+    }
+
+    private func reconcileMostUsedProviderCandidates() {
+        _ = self.settings.reconcileMostUsedProviderCandidates(
+            activeProviders: self.mostUsedProviderCandidatesInOrder)
     }
 }
